@@ -3,97 +3,418 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Inloggning</title>
+    <title>Välj inloggning</title>
+    
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
+
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f4f9; display: flex; justify-content: center; padding-top: 50px; }
-        #app { width: 100%; max-width: 600px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        h1 { text-align: center; color: #333; margin-top: 0; }
-        
-        #search { 
-            width: 100%; padding: 12px; font-size: 16px; margin-bottom: 20px; 
-            box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;
+        :root {
+            /* Färgpalett - Light Mode (Default) */
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --accent-color: #3b82f6; /* Modern blå */
+            --accent-hover: #2563eb;
+            --border-color: #e2e8f0;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-hover: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --input-bg: #ffffff;
+            --header-bg: rgba(255, 255, 255, 0.8);
         }
+
+        /* Dark Mode Variabler */
+        [data-theme="dark"] {
+            --bg-color: #0f172a; /* Deep Slate */
+            --card-bg: #1e293b;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --accent-color: #60a5fa;
+            --accent-hover: #93c5fd;
+            --border-color: #334155;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5);
+            --shadow-hover: 0 10px 15px -3px rgb(0 0 0 / 0.6);
+            --input-bg: #1e293b;
+            --header-bg: rgba(15, 23, 42, 0.8);
+        }
+
+        * { box-sizing: border-box; transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+            padding-top: 40px;
+        }
+
+        #app {
+            width: 100%;
+            max-width: 550px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* --- Header & Theme Toggle --- */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        h1 {
+            font-size: 22px;
+            font-weight: 700;
+            margin: 0;
+            letter-spacing: -0.5px;
+        }
+
+        .theme-toggle {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: var(--shadow-sm);
+        }
+        .theme-toggle:hover { transform: scale(1.05); }
+
+        /* --- Search Input --- */
+        .search-container { position: relative; }
         
-        #idp-list { list-style: none; padding: 0; margin: 0; max-height: 60vh; overflow-y: auto; border-top: 1px solid #eee; }
-        .idp-item { padding: 15px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; }
-        .idp-item:hover { background-color: #f0f8ff; color: #0056b3; }
+        #search {
+            width: 100%;
+            padding: 16px 20px;
+            padding-left: 48px;
+            font-size: 16px;
+            background-color: var(--input-bg);
+            border: 2px solid transparent; /* För animation */
+            border-radius: 12px;
+            box-shadow: var(--shadow-md);
+            color: var(--text-primary);
+            outline: none;
+        }
+
+        #search:focus {
+            border-color: var(--accent-color);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-secondary);
+            pointer-events: none;
+        }
+
+        /* --- Lists (Recent & Main) --- */
+        .section-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            margin-bottom: 10px;
+            margin-top: 10px;
+            padding-left: 5px;
+        }
+
+        ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+
+        .idp-item {
+            background-color: var(--card-bg);
+            padding: 16px 20px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            box-shadow: var(--shadow-sm);
+            transform: translateY(0);
+            transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        .idp-item:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-hover);
+            border-color: var(--accent-color);
+        }
+
+        .idp-content {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .idp-avatar {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .idp-name {
+            font-weight: 500;
+            font-size: 15px;
+        }
+
+        .arrow-icon {
+            color: var(--text-secondary);
+            opacity: 0;
+            transform: translateX(-10px);
+            transition: all 0.2s ease;
+        }
+
+        .idp-item:hover .arrow-icon {
+            opacity: 1;
+            transform: translateX(0);
+            color: var(--accent-color);
+        }
+
+        /* --- Utils --- */
+        .hidden { display: none !important; }
         
-        .debug-info {
-            background: #fff3cd; color: #856404; padding: 10px; margin-bottom: 15px;
-            font-size: 0.9em; border-radius: 4px; display: none;
+        /* Debug Box */
+        .debug-box {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.4);
+            color: #d97706;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: none;
+            margin-bottom: 20px;
+        }
+        [data-theme="dark"] .debug-box { color: #fbbf24; }
+
+        /* Loading Animation */
+        .loading-pulse {
+            height: 60px;
+            background: var(--card-bg);
+            border-radius: 12px;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
         }
     </style>
 </head>
 <body>
+
     <div id="app">
-        <h1>Välj organisation</h1>
-        
-        <div id="debug-box" class="debug-info">
-            <strong>Testläge:</strong> Ingen 'return' URL hittades. 
-            Klick på listan kommer visa en popup istället för att logga in.
+        <header>
+            <h1>Välj inloggning</h1>
+            <button class="theme-toggle" id="theme-btn" aria-label="Växla tema">
+                <span class="material-symbols-rounded" id="theme-icon">light_mode</span>
+            </button>
+        </header>
+
+        <div id="debug-box" class="debug-box">
+            <span class="material-symbols-rounded" style="vertical-align: middle; font-size: 18px; margin-right: 5px;">info</span>
+            <strong>Testläge:</strong> Ingen 'return'-parameter. Klick visar popup.
         </div>
 
-        <input type="text" id="search" placeholder="Sök din kommun, region eller skola..." onkeyup="filterList()">
-        
-        <ul id="idp-list">
-            <li style="padding:15px; text-align:center; color:#888;">Laddar lista...</li>
-        </ul>
+        <div class="search-container">
+            <span class="material-symbols-rounded search-icon">search</span>
+            <input type="text" id="search" placeholder="Sök organisation..." autocomplete="off">
+        </div>
+
+        <div id="recent-container" class="hidden">
+            <div class="section-label">Senaste val</div>
+            <ul id="recent-list"></ul>
+        </div>
+
+        <div id="all-container">
+            <div class="section-label">Alla organisationer</div>
+            <ul id="idp-list">
+                <li class="loading-pulse"></li>
+                <li class="loading-pulse"></li>
+                <li class="loading-pulse"></li>
+            </ul>
+        </div>
     </div>
 
     <script>
+        // --- CONFIG & STATE ---
         let allIdps = [];
+        const RECENT_KEY = 'ds_recent_selections';
+        const THEME_KEY = 'ds_theme';
         const params = new URLSearchParams(window.location.search);
-        const returnUrl = params.get('return'); 
+        const returnUrl = params.get('return');
 
-        // Hantera testläge
-        if (!returnUrl) {
-            document.getElementById('debug-box').style.display = 'block';
+        // --- THEME LOGIC ---
+        function initTheme() {
+            const savedTheme = localStorage.getItem(THEME_KEY);
+            const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            
+            // Prioritera sparat val, annars system
+            if (savedTheme === 'dark' || (!savedTheme && systemDark)) {
+                setTheme('dark');
+            } else {
+                setTheme('light');
+            }
         }
 
-        // Hämta data
-        fetch('/api/feed')
-            .then(res => res.json())
-            .then(data => {
-                if(data.error) throw new Error(data.error);
-                allIdps = data;
-                renderList(allIdps);
-            })
-            .catch(err => {
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            const icon = document.getElementById('theme-icon');
+            icon.textContent = theme === 'dark' ? 'dark_mode' : 'light_mode';
+            localStorage.setItem(THEME_KEY, theme);
+        }
+
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            setTheme(current === 'dark' ? 'light' : 'dark');
+        }
+
+        // --- DATA LOGIC ---
+        async function loadData() {
+            try {
+                if (!returnUrl) document.getElementById('debug-box').style.display = 'block';
+
+                const res = await fetch('/api/feed');
+                if (!res.ok) throw new Error('Network error');
+                
+                allIdps = await res.json();
+                
+                renderRecent(); // Rendera historik först
+                renderList(allIdps); // Rendera alla
+            } catch (err) {
                 document.getElementById('idp-list').innerHTML = 
-                    `<li style="padding:15px; color:red;">Fel vid laddning: ${err.message}</li>`;
-            });
+                    `<li style="padding:20px; text-align:center; color:var(--text-secondary)">Kunde inte ladda listan.</li>`;
+            }
+        }
+
+        // --- RECENT SELECTION LOGIC ---
+        function getRecent() {
+            const str = localStorage.getItem(RECENT_KEY);
+            return str ? JSON.parse(str) : [];
+        }
+
+        function saveSelection(entityID) {
+            let recent = getRecent();
+            // Ta bort om den redan finns (för att flytta den till toppen)
+            recent = recent.filter(id => id !== entityID);
+            // Lägg till överst
+            recent.unshift(entityID);
+            // Spara max 3
+            recent = recent.slice(0, 3);
+            localStorage.setItem(RECENT_KEY, JSON.stringify(recent));
+        }
+
+        function renderRecent() {
+            const recentIds = getRecent();
+            const container = document.getElementById('recent-container');
+            const list = document.getElementById('recent-list');
+            
+            if (recentIds.length === 0) {
+                container.classList.add('hidden');
+                return;
+            }
+
+            // Hitta fullständiga objekt för IDn vi sparat
+            const recentItems = recentIds.map(id => allIdps.find(item => item.entityID === id)).filter(Boolean);
+
+            if (recentItems.length === 0) {
+                container.classList.add('hidden');
+                return;
+            }
+
+            container.classList.remove('hidden');
+            list.innerHTML = '';
+            recentItems.forEach(item => list.appendChild(createItemElement(item)));
+        }
+
+        // --- RENDERING ---
+        function createItemElement(item) {
+            const li = document.createElement('li');
+            li.className = 'idp-item';
+            
+            // Skapa initialer för avataren
+            const initials = item.title.substring(0, 2).toUpperCase();
+
+            li.innerHTML = `
+                <div class="idp-content">
+                    <div class="idp-avatar">${initials}</div>
+                    <span class="idp-name">${item.title}</span>
+                </div>
+                <span class="material-symbols-rounded arrow-icon">arrow_forward</span>
+            `;
+            
+            li.onclick = () => handleSelection(item.entityID);
+            return li;
+        }
 
         function renderList(items) {
             const list = document.getElementById('idp-list');
             list.innerHTML = '';
-            
-            if(items.length === 0) {
-                list.innerHTML = '<li style="padding:15px; text-align:center;">Inga resultat matchade din sökning</li>';
+
+            if (items.length === 0) {
+                list.innerHTML = '<li style="padding:20px; text-align:center; color:var(--text-secondary)">Inga resultat hittades</li>';
                 return;
             }
 
+            // Rendera max 50 i taget för prestanda om listan är enorm, men oftast ok att rendera allt här
             items.forEach(item => {
-                const li = document.createElement('li');
-                li.className = 'idp-item';
-                li.textContent = item.title;
-                li.onclick = () => selectIdp(item.entityID);
-                list.appendChild(li);
+                list.appendChild(createItemElement(item));
             });
         }
 
         function filterList() {
             const query = document.getElementById('search').value.toLowerCase();
-            const filtered = allIdps.filter(item => 
-                (item.title && item.title.toLowerCase().includes(query)) ||
-                (item.entityID && item.entityID.toLowerCase().includes(query))
-            );
-            renderList(filtered);
+            const recentContainer = document.getElementById('recent-container');
+            const allLabel = document.querySelector('#all-container .section-label');
+
+            if (query.length > 0) {
+                // Dölj "Senaste" när man söker för renare UI
+                recentContainer.classList.add('hidden');
+                allLabel.innerText = "Sökresultat";
+                
+                const filtered = allIdps.filter(item => 
+                    item.title.toLowerCase().includes(query) || 
+                    item.entityID.toLowerCase().includes(query)
+                );
+                renderList(filtered);
+            } else {
+                // Återställ vy
+                renderRecent(); // Visar "Senaste" igen om det finns
+                allLabel.innerText = "Alla organisationer";
+                renderList(allIdps);
+            }
         }
 
-        function selectIdp(entityID) {
-            // Om vi är i testläge (ingen return url)
+        function handleSelection(entityID) {
+            saveSelection(entityID); // Spara till historik
+
             if (!returnUrl) {
-                alert(`TEST: Här hade du skickats till din SP med vald IdP:\n\n${entityID}`);
+                alert(`TEST: Du valde:\n${entityID}\n\nHistorik sparad! Ladda om sidan för att se den i toppen.`);
                 return;
             }
 
@@ -101,6 +422,15 @@
             const finalLink = `${returnUrl}${separator}entityID=${encodeURIComponent(entityID)}`;
             window.location.href = finalLink;
         }
+
+        // --- EVENT LISTENERS & INIT ---
+        document.getElementById('theme-btn').addEventListener('click', toggleTheme);
+        document.getElementById('search').addEventListener('keyup', filterList);
+
+        // Start
+        initTheme();
+        loadData();
+
     </script>
 </body>
 </html>
