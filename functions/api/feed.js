@@ -6,56 +6,70 @@ export async function onRequest(context) {
 
   try {
     const responses = await Promise.all(feeds.map(url => fetch(url)));
-    let rawItems = [];
+    let validIdps = [];
 
     for (const response of responses) {
-      if (response.ok) {
-        const data = await response.json();
-        // Vissa feeds returnerar en array direkt, andra kanske ett objekt.
-        // Vi säkerställer att vi hanterar arrayen.
-        if (Array.isArray(data)) {
-            rawItems = rawItems.concat(data);
+      if (!response.ok) continue;
+      
+      const data = await response.json();
+      let itemsToProcess = [];
+
+      // SÄKERHETSKONTROLL AV DATASTRUKTUR
+      if (Array.isArray(data)) {
+        // Om det är en vanlig lista
+        itemsToProcess = data;
+      } else if (typeof data === 'object') {
+        // OM DET ÄR SAMBI-FORMATET (Objekt där nyckeln är entityID)
+        // Vi konverterar objektet till en array och flyttar in nyckeln till "entityID"
+        itemsToProcess = Object.keys(data).map(key => {
+            return {
+                entityID: key,
+                ...data[key] // Kopiera in resten av datan (organization, idps, etc)
+            };
+        });
+      }
+
+      // BEARBETNING
+      for (const item of itemsToProcess) {
+        // VIKTIGT: Vi vill bara visa IdP:er (Login-servrar).
+        // Om arrayen 'idps' saknas eller är tom, är detta en Service Provider -> Hoppa över.
+        if (!item.idps || item.idps.length === 0) {
+            continue; 
         }
+
+        // HÄMTA NAMN (Ligger djupt i strukturen i din JSON)
+        // Struktur: organization -> displayName -> { sv: "...", en: "..." }
+        let name = item.entityID; // Fallback
+        let keywords = "";
+        
+        if (item.organization) {
+            // Hämta namn-objektet (kan heta displayName eller fullName)
+            const nameObj = item.organization.displayName || item.organization.fullName;
+            
+            if (nameObj) {
+                // Prioritera svenska, sen engelska, sen första bästa
+                name = nameObj['sv'] || nameObj['sv-SE'] || 
+                       nameObj['en'] || nameObj['en-IN'] || nameObj['en-US'] || 
+                       Object.values(nameObj)[0];
+            }
+        }
+
+        validIdps.push({
+            entityID: item.entityID,
+            title: name,
+            // Spara logga om det skulle dyka upp i framtiden, annars null
+            logo: null 
+        });
       }
     }
 
-    const processedItems = rawItems.map(item => {
-      // 1. Hantera namn (Defensive coding)
-      let displayName = item.entityID; // Fallback till ID om inget namn finns
-      const displayNames = item.DisplayNames || []; // Om DisplayNames saknas, använd tom array
-
-      if (displayNames.length > 0) {
-        const svName = displayNames.find(n => n.lang === 'sv' || n.lang === 'sv-se');
-        const enName = displayNames.find(n => n.lang === 'en' || n.lang === 'en-us');
-        
-        if (svName && svName.value) displayName = svName.value;
-        else if (enName && enName.value) displayName = enName.value;
-        else if (displayNames[0].value) displayName = displayNames[0].value;
-      }
-
-      // 2. Hantera sökord (Defensive coding)
-      let keywordString = "";
-      const keywords = item.Keywords || [];
-      if (Array.isArray(keywords)) {
-          keywordString = keywords.map(k => k.value || "").join(" ");
-      }
-
-      return {
-        entityID: item.entityID,
-        title: displayName,
-        keywords: keywordString
-      };
-    });
-
-    // Ta bort dubbletter
+    // Ta bort dubbletter (om samma IdP finns i både Sambi och Skolfederation)
     const uniqueMap = new Map();
-    processedItems.forEach(item => {
-        if(item.entityID) uniqueMap.set(item.entityID, item);
-    });
+    validIdps.forEach(item => uniqueMap.set(item.entityID, item));
     
-    // Sortera
+    // Sortera A-Ö
     const sortedList = Array.from(uniqueMap.values()).sort((a, b) => 
-        a.title.localeCompare(b.title, 'sv')
+        (a.title || "").localeCompare(b.title || "", 'sv')
     );
 
     return new Response(JSON.stringify(sortedList), {
@@ -63,7 +77,6 @@ export async function onRequest(context) {
     });
 
   } catch (err) {
-    // Om något går fel, skicka tillbaka felet så vi kan se det i webbläsaren
     return new Response(JSON.stringify({ error: err.message, stack: err.stack }), { status: 500 });
   }
 }
