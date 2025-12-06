@@ -3,74 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Välj inloggning</title>
+    <title>Inloggning</title>
     <style>
-        /* Enkel CSS för att det ska se proffsigt ut */
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f4f4f9; display: flex; justify-content: center; padding-top: 50px; }
+        body { font-family: sans-serif; background: #f4f4f9; display: flex; justify-content: center; padding-top: 50px; }
         #app { width: 100%; max-width: 600px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #333; }
+        #search { width: 100%; padding: 12px; font-size: 16px; margin-bottom: 20px; box-sizing: border-box; }
         
-        h1 { font-size: 24px; text-align: center; margin-bottom: 20px; color: #333; }
+        /* Enkel lista utan loggor */
+        #idp-list { list-style: none; padding: 0; margin: 0; max-height: 60vh; overflow-y: auto; border: 1px solid #eee; }
+        .idp-item { padding: 15px; border-bottom: 1px solid #eee; cursor: pointer; }
+        .idp-item:hover { background-color: #f0f8ff; color: #0056b3; }
+        .idp-item:last-child { border-bottom: none; }
         
-        #search { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; margin-bottom: 20px; }
-        
-        #idp-list { list-style: none; padding: 0; margin: 0; }
-        
-        .idp-item { 
-            display: flex; 
-            align-items: center; 
-            padding: 12px; 
-            border-bottom: 1px solid #eee; 
-            cursor: pointer; 
-            transition: background 0.2s; 
-        }
-        .idp-item:hover { background-color: #f9f9f9; }
-        
-        .idp-logo { 
-            width: 40px; 
-            height: 40px; 
-            object-fit: contain; /* Gör att loggan skalas utan att klippas */
-            margin-right: 15px; 
-            background: #fff; /* Vit bakgrund om loggan är transparent */
-        }
-        
-        .idp-no-logo {
-            width: 40px; height: 40px; margin-right: 15px; background: #eee; border-radius: 50%;
-            display: flex; align-items: center; justify-content: center; font-weight: bold; color: #888;
-        }
-
-        .idp-name { font-size: 16px; color: #333; font-weight: 500; }
-        
-        /* Dölj scrollbar men tillåt scroll om listan är lång */
-        #idp-list { max-height: 60vh; overflow-y: auto; }
+        /* Debug / Info box */
+        #status-msg { padding: 10px; margin-bottom: 10px; border-radius: 4px; display: none; }
+        .error { background: #fdd; color: #900; display: block !important; }
+        .warn { background: #fff3cd; color: #856404; display: block !important; }
     </style>
 </head>
 <body>
     <div id="app">
-        <h1>Logga in via din organisation</h1>
-        <input type="text" id="search" placeholder="Sök efter skola eller kommun..." onkeyup="filterList()">
+        <h1>Välj organisation</h1>
+        
+        <div id="status-msg"></div>
+
+        <input type="text" id="search" placeholder="Sök..." onkeyup="filterList()">
         <ul id="idp-list">
-            <li style="text-align:center; padding:20px; color:#888;">Laddar inloggningsalternativ...</li>
+            <li style="padding:15px; text-align:center; color:#888;">Laddar...</li>
         </ul>
     </div>
 
     <script>
         let allIdps = [];
         const params = new URLSearchParams(window.location.search);
+        // Använd 'https://example.com' som fallback om du bara vill testa UI:t utan parametrar
         const returnUrl = params.get('return'); 
+        const statusBox = document.getElementById('status-msg');
 
+        // Visa varning om returnUrl saknas, men blockera inte UI
         if (!returnUrl) {
-            alert("Varning: Ingen return-url hittades. Inloggning kommer inte fungera.");
+            statusBox.className = 'warn';
+            statusBox.innerText = "TESTLÄGE: Ingen 'return' URL angiven. Klick på länkar kommer inte fungera på riktigt.";
         }
 
-        // Hämta data
         fetch('/api/feed')
-            .then(res => res.json())
+            .then(async res => {
+                if (!res.ok) {
+                    const errorData = await res.json();
+                    throw new Error(errorData.error || `Serverfel: ${res.status}`);
+                }
+                return res.json();
+            })
             .then(data => {
                 allIdps = data;
                 renderList(allIdps);
             })
             .catch(err => {
-                document.getElementById('idp-list').innerHTML = `<li style="color:red; text-align:center;">Kunde inte ladda listan.</li>`;
+                statusBox.className = 'error';
+                statusBox.innerText = "Kunde inte hämta data: " + err.message;
+                document.getElementById('idp-list').innerHTML = '';
             });
 
         function renderList(items) {
@@ -78,50 +70,40 @@
             list.innerHTML = '';
             
             if(items.length === 0) {
-                list.innerHTML = '<li style="padding:15px; text-align:center;">Inga resultat hittades</li>';
+                list.innerHTML = '<li style="padding:15px; text-align:center;">Inga resultat</li>';
                 return;
             }
 
             items.forEach(item => {
                 const li = document.createElement('li');
                 li.className = 'idp-item';
+                li.textContent = item.title; // Bara text, ingen logga
                 li.onclick = () => selectIdp(item.entityID);
-
-                // Hantera logotyp (visa platshållare om ingen finns)
-                let logoHtml = '';
-                if (item.logo) {
-                    // Vi lägger till onerror för att hantera trasiga bildlänkar snyggt
-                    logoHtml = `<img src="${item.logo}" alt="Logo" class="idp-logo" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-                                <div class="idp-no-logo" style="display:none">${item.title.charAt(0)}</div>`;
-                } else {
-                    logoHtml = `<div class="idp-no-logo">${item.title.charAt(0)}</div>`;
-                }
-
-                li.innerHTML = `
-                    ${logoHtml}
-                    <span class="idp-name">${item.title}</span>
-                `;
                 list.appendChild(li);
             });
         }
 
         function filterList() {
             const query = document.getElementById('search').value.toLowerCase();
-            const filtered = allIdps.filter(item => {
-                // Sök i både Titel, Keywords och EntityID
-                const textMatch = item.title.toLowerCase().includes(query);
-                const idMatch = item.entityID.toLowerCase().includes(query);
-                const keywordMatch = item.keywords ? item.keywords.toLowerCase().includes(query) : false;
-                
-                return textMatch || idMatch || keywordMatch;
-            });
+            const filtered = allIdps.filter(item => 
+                item.title.toLowerCase().includes(query) ||
+                item.entityID.toLowerCase().includes(query) ||
+                item.keywords.toLowerCase().includes(query)
+            );
             renderList(filtered);
         }
 
         function selectIdp(entityID) {
-            if (!returnUrl) return;
+            if (!returnUrl) {
+                alert(`Du valde:\n${entityID}\n\n(Ingen redirect sker eftersom return-url saknas)`);
+                return;
+            }
             const separator = returnUrl.includes('?') ? '&' : '?';
             const finalLink = `${returnUrl}${separator}entityID=${encodeURIComponent(entityID)}`;
+            
+            // Logga i konsolen för debug
+            console.log("Redirecting to:", finalLink);
+            
             window.location.href = finalLink;
         }
     </script>
