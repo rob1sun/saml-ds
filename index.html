@@ -5,64 +5,62 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Inloggning</title>
     <style>
-        body { font-family: sans-serif; background: #f4f4f9; display: flex; justify-content: center; padding-top: 50px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f4f9; display: flex; justify-content: center; padding-top: 50px; }
         #app { width: 100%; max-width: 600px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        h1 { text-align: center; color: #333; }
-        #search { width: 100%; padding: 12px; font-size: 16px; margin-bottom: 20px; box-sizing: border-box; }
+        h1 { text-align: center; color: #333; margin-top: 0; }
         
-        /* Enkel lista utan loggor */
-        #idp-list { list-style: none; padding: 0; margin: 0; max-height: 60vh; overflow-y: auto; border: 1px solid #eee; }
-        .idp-item { padding: 15px; border-bottom: 1px solid #eee; cursor: pointer; }
+        #search { 
+            width: 100%; padding: 12px; font-size: 16px; margin-bottom: 20px; 
+            box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;
+        }
+        
+        #idp-list { list-style: none; padding: 0; margin: 0; max-height: 60vh; overflow-y: auto; border-top: 1px solid #eee; }
+        .idp-item { padding: 15px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; }
         .idp-item:hover { background-color: #f0f8ff; color: #0056b3; }
-        .idp-item:last-child { border-bottom: none; }
         
-        /* Debug / Info box */
-        #status-msg { padding: 10px; margin-bottom: 10px; border-radius: 4px; display: none; }
-        .error { background: #fdd; color: #900; display: block !important; }
-        .warn { background: #fff3cd; color: #856404; display: block !important; }
+        .debug-info {
+            background: #fff3cd; color: #856404; padding: 10px; margin-bottom: 15px;
+            font-size: 0.9em; border-radius: 4px; display: none;
+        }
     </style>
 </head>
 <body>
     <div id="app">
         <h1>Välj organisation</h1>
         
-        <div id="status-msg"></div>
+        <div id="debug-box" class="debug-info">
+            <strong>Testläge:</strong> Ingen 'return' URL hittades. 
+            Klick på listan kommer visa en popup istället för att logga in.
+        </div>
 
-        <input type="text" id="search" placeholder="Sök..." onkeyup="filterList()">
+        <input type="text" id="search" placeholder="Sök din kommun, region eller skola..." onkeyup="filterList()">
+        
         <ul id="idp-list">
-            <li style="padding:15px; text-align:center; color:#888;">Laddar...</li>
+            <li style="padding:15px; text-align:center; color:#888;">Laddar lista...</li>
         </ul>
     </div>
 
     <script>
         let allIdps = [];
         const params = new URLSearchParams(window.location.search);
-        // Använd 'https://example.com' som fallback om du bara vill testa UI:t utan parametrar
         const returnUrl = params.get('return'); 
-        const statusBox = document.getElementById('status-msg');
 
-        // Visa varning om returnUrl saknas, men blockera inte UI
+        // Hantera testläge
         if (!returnUrl) {
-            statusBox.className = 'warn';
-            statusBox.innerText = "TESTLÄGE: Ingen 'return' URL angiven. Klick på länkar kommer inte fungera på riktigt.";
+            document.getElementById('debug-box').style.display = 'block';
         }
 
+        // Hämta data
         fetch('/api/feed')
-            .then(async res => {
-                if (!res.ok) {
-                    const errorData = await res.json();
-                    throw new Error(errorData.error || `Serverfel: ${res.status}`);
-                }
-                return res.json();
-            })
+            .then(res => res.json())
             .then(data => {
+                if(data.error) throw new Error(data.error);
                 allIdps = data;
                 renderList(allIdps);
             })
             .catch(err => {
-                statusBox.className = 'error';
-                statusBox.innerText = "Kunde inte hämta data: " + err.message;
-                document.getElementById('idp-list').innerHTML = '';
+                document.getElementById('idp-list').innerHTML = 
+                    `<li style="padding:15px; color:red;">Fel vid laddning: ${err.message}</li>`;
             });
 
         function renderList(items) {
@@ -70,14 +68,14 @@
             list.innerHTML = '';
             
             if(items.length === 0) {
-                list.innerHTML = '<li style="padding:15px; text-align:center;">Inga resultat</li>';
+                list.innerHTML = '<li style="padding:15px; text-align:center;">Inga resultat matchade din sökning</li>';
                 return;
             }
 
             items.forEach(item => {
                 const li = document.createElement('li');
                 li.className = 'idp-item';
-                li.textContent = item.title; // Bara text, ingen logga
+                li.textContent = item.title;
                 li.onclick = () => selectIdp(item.entityID);
                 list.appendChild(li);
             });
@@ -86,24 +84,21 @@
         function filterList() {
             const query = document.getElementById('search').value.toLowerCase();
             const filtered = allIdps.filter(item => 
-                item.title.toLowerCase().includes(query) ||
-                item.entityID.toLowerCase().includes(query) ||
-                item.keywords.toLowerCase().includes(query)
+                (item.title && item.title.toLowerCase().includes(query)) ||
+                (item.entityID && item.entityID.toLowerCase().includes(query))
             );
             renderList(filtered);
         }
 
         function selectIdp(entityID) {
+            // Om vi är i testläge (ingen return url)
             if (!returnUrl) {
-                alert(`Du valde:\n${entityID}\n\n(Ingen redirect sker eftersom return-url saknas)`);
+                alert(`TEST: Här hade du skickats till din SP med vald IdP:\n\n${entityID}`);
                 return;
             }
+
             const separator = returnUrl.includes('?') ? '&' : '?';
             const finalLink = `${returnUrl}${separator}entityID=${encodeURIComponent(entityID)}`;
-            
-            // Logga i konsolen för debug
-            console.log("Redirecting to:", finalLink);
-            
             window.location.href = finalLink;
         }
     </script>
