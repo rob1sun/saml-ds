@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Välj inloggning</title>
+    <style>
+        /* Enkel CSS för att det ska se proffsigt ut */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f4f4f9; display: flex; justify-content: center; padding-top: 50px; }
+        #app { width: 100%; max-width: 600px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        
+        h1 { font-size: 24px; text-align: center; margin-bottom: 20px; color: #333; }
+        
+        #search { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; margin-bottom: 20px; }
+        
+        #idp-list { list-style: none; padding: 0; margin: 0; }
+        
+        .idp-item { 
+            display: flex; 
+            align-items: center; 
+            padding: 12px; 
+            border-bottom: 1px solid #eee; 
+            cursor: pointer; 
+            transition: background 0.2s; 
+        }
+        .idp-item:hover { background-color: #f9f9f9; }
+        
+        .idp-logo { 
+            width: 40px; 
+            height: 40px; 
+            object-fit: contain; /* Gör att loggan skalas utan att klippas */
+            margin-right: 15px; 
+            background: #fff; /* Vit bakgrund om loggan är transparent */
+        }
+        
+        .idp-no-logo {
+            width: 40px; height: 40px; margin-right: 15px; background: #eee; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; font-weight: bold; color: #888;
+        }
+
+        .idp-name { font-size: 16px; color: #333; font-weight: 500; }
+        
+        /* Dölj scrollbar men tillåt scroll om listan är lång */
+        #idp-list { max-height: 60vh; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <h1>Logga in via din organisation</h1>
+        <input type="text" id="search" placeholder="Sök efter skola eller kommun..." onkeyup="filterList()">
+        <ul id="idp-list">
+            <li style="text-align:center; padding:20px; color:#888;">Laddar inloggningsalternativ...</li>
+        </ul>
+    </div>
+
+    <script>
+        let allIdps = [];
+        const params = new URLSearchParams(window.location.search);
+        const returnUrl = params.get('return'); 
+
+        if (!returnUrl) {
+            alert("Varning: Ingen return-url hittades. Inloggning kommer inte fungera.");
+        }
+
+        // Hämta data
+        fetch('/api/feed')
+            .then(res => res.json())
+            .then(data => {
+                allIdps = data;
+                renderList(allIdps);
+            })
+            .catch(err => {
+                document.getElementById('idp-list').innerHTML = `<li style="color:red; text-align:center;">Kunde inte ladda listan.</li>`;
+            });
+
+        function renderList(items) {
+            const list = document.getElementById('idp-list');
+            list.innerHTML = '';
+            
+            if(items.length === 0) {
+                list.innerHTML = '<li style="padding:15px; text-align:center;">Inga resultat hittades</li>';
+                return;
+            }
+
+            items.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'idp-item';
+                li.onclick = () => selectIdp(item.entityID);
+
+                // Hantera logotyp (visa platshållare om ingen finns)
+                let logoHtml = '';
+                if (item.logo) {
+                    // Vi lägger till onerror för att hantera trasiga bildlänkar snyggt
+                    logoHtml = `<img src="${item.logo}" alt="Logo" class="idp-logo" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                                <div class="idp-no-logo" style="display:none">${item.title.charAt(0)}</div>`;
+                } else {
+                    logoHtml = `<div class="idp-no-logo">${item.title.charAt(0)}</div>`;
+                }
+
+                li.innerHTML = `
+                    ${logoHtml}
+                    <span class="idp-name">${item.title}</span>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        function filterList() {
+            const query = document.getElementById('search').value.toLowerCase();
+            const filtered = allIdps.filter(item => {
+                // Sök i både Titel, Keywords och EntityID
+                const textMatch = item.title.toLowerCase().includes(query);
+                const idMatch = item.entityID.toLowerCase().includes(query);
+                const keywordMatch = item.keywords ? item.keywords.toLowerCase().includes(query) : false;
+                
+                return textMatch || idMatch || keywordMatch;
+            });
+            renderList(filtered);
+        }
+
+        function selectIdp(entityID) {
+            if (!returnUrl) return;
+            const separator = returnUrl.includes('?') ? '&' : '?';
+            const finalLink = `${returnUrl}${separator}entityID=${encodeURIComponent(entityID)}`;
+            window.location.href = finalLink;
+        }
+    </script>
+</body>
+</html>
