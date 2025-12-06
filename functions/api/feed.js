@@ -5,84 +5,65 @@ export async function onRequest(context) {
   ];
 
   try {
-    // 1. Hämta alla feeds
     const responses = await Promise.all(feeds.map(url => fetch(url)));
     let rawItems = [];
 
     for (const response of responses) {
       if (response.ok) {
         const data = await response.json();
-        rawItems = rawItems.concat(data);
+        // Vissa feeds returnerar en array direkt, andra kanske ett objekt.
+        // Vi säkerställer att vi hanterar arrayen.
+        if (Array.isArray(data)) {
+            rawItems = rawItems.concat(data);
+        }
       }
     }
 
-    // 2. Normalisera och städa datan
     const processedItems = rawItems.map(item => {
-      
-      // -- LOGIK FÖR NAMN --
-      // Vi letar efter DisplayNames. Om det inte finns, fallback till title eller entityID.
-      let displayName = item.entityID; // Sista utväg
-      let keywords = item.Keywords || []; // Kan vara bra för sökning senare
+      // 1. Hantera namn (Defensive coding)
+      let displayName = item.entityID; // Fallback till ID om inget namn finns
+      const displayNames = item.DisplayNames || []; // Om DisplayNames saknas, använd tom array
 
-      if (Array.isArray(item.DisplayNames)) {
-        // Hitta svenskt namn
-        const svName = item.DisplayNames.find(n => n.lang === 'sv' || n.lang === 'sv-se');
-        // Hitta engelskt namn
-        const enName = item.DisplayNames.find(n => n.lang === 'en' || n.lang === 'en-us');
+      if (displayNames.length > 0) {
+        const svName = displayNames.find(n => n.lang === 'sv' || n.lang === 'sv-se');
+        const enName = displayNames.find(n => n.lang === 'en' || n.lang === 'en-us');
         
-        // Prioritera: Svenska -> Engelska -> Första tillgängliga -> entityID
-        if (svName) displayName = svName.value;
-        else if (enName) displayName = enName.value;
-        else if (item.DisplayNames.length > 0) displayName = item.DisplayNames[0].value;
+        if (svName && svName.value) displayName = svName.value;
+        else if (enName && enName.value) displayName = enName.value;
+        else if (displayNames[0].value) displayName = displayNames[0].value;
       }
 
-      // -- LOGIK FÖR LOGOTYP --
-      let logoUrl = null;
-      if (Array.isArray(item.Logos) && item.Logos.length > 0) {
-        // Vi vill helst ha en logga som är bredare än den är hög (passar oftast listor bättre)
-        // eller bara ta den första om vi inte vill vara kräsna.
-        // Här tar vi den största tillgängliga loggan för bästa kvalitet.
-        
-        // Sortera loggor efter bredd (descending)
-        const sortedLogos = item.Logos.sort((a, b) => {
-            const widthA = parseInt(a.width || 0);
-            const widthB = parseInt(b.width || 0);
-            return widthB - widthA;
-        });
-
-        logoUrl = sortedLogos[0].value; // 'value' innehåller URL:en i standardformatet
+      // 2. Hantera sökord (Defensive coding)
+      let keywordString = "";
+      const keywords = item.Keywords || [];
+      if (Array.isArray(keywords)) {
+          keywordString = keywords.map(k => k.value || "").join(" ");
       }
 
-      // -- RETURNERA STÄDAT OBJEKT --
       return {
         entityID: item.entityID,
         title: displayName,
-        logo: logoUrl,
-        keywords: keywords.map(k => k.value).join(" ") // Slå ihop sökord till en sträng
+        keywords: keywordString
       };
     });
 
-    // 3. Ta bort dubbletter (baserat på entityID)
-    // Vi använder en Map där entityID är nyckeln. Senare insatta skriver över tidigare.
+    // Ta bort dubbletter
     const uniqueMap = new Map();
     processedItems.forEach(item => {
         if(item.entityID) uniqueMap.set(item.entityID, item);
     });
     
-    // Sortera listan alfabetiskt på titeln
+    // Sortera
     const sortedList = Array.from(uniqueMap.values()).sort((a, b) => 
         a.title.localeCompare(b.title, 'sv')
     );
 
     return new Response(JSON.stringify(sortedList), {
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-        "Cache-Control": "public, max-age=3600"
-      }
+      headers: { "Content-Type": "application/json" }
     });
 
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    // Om något går fel, skicka tillbaka felet så vi kan se det i webbläsaren
+    return new Response(JSON.stringify({ error: err.message, stack: err.stack }), { status: 500 });
   }
 }
