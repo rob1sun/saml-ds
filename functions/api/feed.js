@@ -1,6 +1,4 @@
 export async function onRequest(context) {
-  // 1. Hämta URLer från miljövariabel (kommaseparerad sträng)
-  // Fallback till hårdkodat om variabeln saknas (bra för lokal dev)
   const envFeeds = context.env.FEDERATION_FEEDS;
   const defaultFeeds = [
     "https://fed.sambi.se/prod/ds/site/federation.json",
@@ -21,7 +19,7 @@ export async function onRequest(context) {
       const data = await response.json();
       let itemsToProcess = [];
 
-      // SÄKERHETSKONTROLL & NORMALISERING
+      // Normalisera data (Array vs Object)
       if (Array.isArray(data)) {
         itemsToProcess = data;
       } else if (typeof data === 'object') {
@@ -32,8 +30,22 @@ export async function onRequest(context) {
       }
 
       for (const item of itemsToProcess) {
-        // Filtrera bort SPs (måste ha 'idps')
+        // 1. Filtrera bort SPs (måste ha 'idps')
         if (!item.idps || item.idps.length === 0) continue;
+
+        // --- NYTT: REFEDS HIDE FROM DISCOVERY ---
+        // Vi kollar om attributet finns och om det innehåller "true"
+        const hideAttr = "http://refeds.org/metadata/hide-from-discovery";
+        
+        // Ibland ligger attributen direkt i roten, ibland i ett underobjekt beroende på feed-format
+        const attrs = item.entityAttributes || {};
+        
+        // Attributet är ofta en array av strängar: ["true"]
+        if (attrs[hideAttr] && attrs[hideAttr].some(val => val === 'true')) {
+            // Om flaggan är satt, hoppa över denna IdP
+            continue; 
+        }
+        // ----------------------------------------
 
         // Namnhantering
         let name = item.entityID;
